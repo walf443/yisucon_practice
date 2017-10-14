@@ -267,6 +267,8 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	fCache = NewCacheFriends()
+
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
 
