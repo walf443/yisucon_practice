@@ -259,6 +259,11 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	userNameMapLock.Lock()
 	userNameMap = make(map[string]string, 0)
 	userNameMapLock.Unlock()
+	err = initUserNameMap()
+	if err != nil {
+		badRequest(w)
+		return
+	}
 
 	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutomoEndpoint))
 	if err != nil {
@@ -270,6 +275,26 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	fCache = NewCacheFriends()
 
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+}
+
+func initUserNameMap() error {
+	rows, err := db.Query(fmt.Sprintf("SELECT `id`, `name` FROM users"))
+	if err != nil {
+		return err
+	}
+
+	userNameMapLock.Lock()
+	for rows.Next() {
+		var id, name string
+		err := rows.Scan(&id, &name)
+		if err != nil {
+			return err
+		}
+		userNameMap[id] = name
+	}
+	userNameMapLock.Unlock()
+
+	return nil
 }
 
 func topHandler(w http.ResponseWriter, r *http.Request) {
