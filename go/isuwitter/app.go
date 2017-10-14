@@ -18,6 +18,8 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/walf443/go-sql-tracer"
+
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
 	"github.com/unrolled/render"
@@ -170,7 +172,7 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 
 	result, err := loadFriends(name)
 	if err != nil {
-panic(err)
+		panic(err)
 		badRequest(w)
 		return
 	}
@@ -587,7 +589,7 @@ func main() {
 	}
 
 	var err error
-	db, err = sql.Open("mysql", fmt.Sprintf(
+	db, err = sql.Open("mysql:trace", fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&loc=Local&parseTime=true",
 		user, password, host, port, dbname,
 	))

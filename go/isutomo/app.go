@@ -14,6 +14,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
+	_ "github.com/walf443/go-sql-tracer"
 )
 
 type Friend struct {
@@ -71,7 +72,7 @@ func (db *DB) connect() error {
 		return err
 	}
 
-	db.Conn, err = sql.Open("mysql", db.dsn())
+	db.Conn, err = sql.Open("mysql:trace", db.dsn())
 
 	if err != nil {
 		return err
