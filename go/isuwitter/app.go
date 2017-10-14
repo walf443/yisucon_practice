@@ -385,7 +385,7 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 
 	var rows *sql.Rows
 
-	rows, err = db.Query(fmt.Sprintf("SELECT `id` FROM users WHERE `name` IN (\"%s\") ORDER BY id ASC", names))
+	rows, err = db.Query(fmt.Sprintf("SELECT `id` FROM users WHERE `name` IN (\"%s\")", names))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
