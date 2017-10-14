@@ -16,6 +16,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -52,11 +53,17 @@ const (
 )
 
 var (
-	re             *render.Render
-	store          *sessions.FilesystemStore
-	db             *sql.DB
-	errInvalidUser = errors.New("Invalid User")
+	re              *render.Render
+	store           *sessions.FilesystemStore
+	db              *sql.DB
+	errInvalidUser  = errors.New("Invalid User")
+	userNameMap     map[string]string
+	userNameMapLock sync.RWMutex
 )
+
+func init() {
+	userNameMap = make(map[string]string, 0)
+}
 
 func getuserID(name string) int {
 	row := db.QueryRow(`SELECT id FROM users WHERE name = ?`, name)
@@ -70,27 +77,47 @@ func getuserID(name string) int {
 
 func fillUserNames(tweets []*Tweet) error {
 	userIds := make([]string, 0)
+
+	userNameMapLock.RLock()
 	for _, tweet := range tweets {
-		userIds = append(userIds, strconv.Itoa(tweet.UserID))
+		id := strconv.Itoa(tweet.UserID)
+		name, ok := userNameMap[id]
+		if ok {
+			tweet.UserName = name
+		} else {
+			userIds = append(userIds, id)
+		}
 	}
-	placeholder := strings.Join(userIds, ",")
-	rows, err := db.Query(fmt.Sprintf(`SELECT id, name FROM users WHERE id IN (%s)`, placeholder))
-	if err != nil {
-		panic(err)
-		return err
-	}
-	userNameMap := make(map[int]string)
-	for rows.Next() {
-		var id int
-		var name string
-		err := rows.Scan(&id, &name)
+	userNameMapLock.RUnlock()
+
+	if len(userIds) > 0 {
+		placeholder := strings.Join(userIds, ",")
+		rows, err := db.Query(fmt.Sprintf(`SELECT id, name FROM users WHERE id IN (%s)`, placeholder))
 		if err != nil {
+			panic(err)
 			return err
 		}
-		userNameMap[id] = name
-	}
-	for _, tweet := range tweets {
-		tweet.UserName = userNameMap[tweet.UserID]
+
+		userNameMapLock.Lock()
+		for rows.Next() {
+			var id string
+			var name string
+			err := rows.Scan(&id, &name)
+			if err != nil {
+				return err
+			}
+			userNameMap[id] = name
+		}
+		userNameMapLock.Unlock()
+
+		userNameMapLock.RLock()
+		for _, tweet := range tweets {
+			name, ok := userNameMap[strconv.Itoa(tweet.UserID)]
+			if ok {
+				tweet.UserName = name
+			}
+		}
+		userNameMapLock.RUnlock()
 	}
 
 	return nil
@@ -145,6 +172,10 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w)
 		return
 	}
+
+	userNameMapLock.Lock()
+	userNameMap = make(map[string]string, 0)
+	userNameMapLock.Unlock()
 
 	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutomoEndpoint))
 	if err != nil {
