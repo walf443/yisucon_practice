@@ -1,9 +1,9 @@
-{{ template "base_top" .}}
+{{ template "base_top.tmpl" .}}
 
 {{ if .Name }}
-{{ template "_post" .}}
+{{ template "_post.tmpl" .}}
    <div class="timeline">
-{{ template "_tweets" .}}
+{{ template "_tweets.tmpl" .}}
    </div>
    <button class="readmore">さらに読み込む</button>
 {{ else }}
@@ -17,4 +17,4 @@
    </form>
 {{ end }}
 
-{{ template "base_bottom" .}}
+{{ template "base_bottom.tmpl" .}}

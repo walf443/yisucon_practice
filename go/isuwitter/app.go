@@ -27,7 +27,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/sessions"
-	"github.com/unrolled/render"
 )
 
 type Tweet struct {
@@ -56,7 +55,6 @@ const (
 )
 
 var (
-	re             *render.Render
 	store          *sessions.FilesystemStore
 	db             *sql.DB
 	errInvalidUser = errors.New("Invalid User")
@@ -68,6 +66,7 @@ var (
 	userIDMapLock   sync.RWMutex
 	fCache          *cacheFriends
 	hport           int
+	templates       *template.Template
 )
 
 func init() {
@@ -78,6 +77,15 @@ func init() {
 	userIDMap = make(map[string]int, 0)
 
 	fCache = NewCacheFriends()
+
+	fmap := template.FuncMap{
+		"add": func(a, b int) int { return a + b },
+		"raw": func(text string) template.HTML {
+			return template.HTML(text)
+		},
+	}
+
+	templates = template.Must(template.New("").Funcs(fmap).ParseFiles("views/_post.tmpl", "views/_tweets.tmpl", "views/base_bottom.tmpl", "views/base_top.tmpl", "views/index.tmpl", "views/search.tmpl", "views/user.tmpl"))
 }
 
 func getuserID(name string) int {
@@ -338,7 +346,8 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 		fCache.Set(me, strings.Split(friends, ","))
 	}
 
-	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
+	w.Header().Set("Content-Type", "application/json;charset=utf-8")
+	w.Write([]byte(`{"result":"ok"}`))
 }
 
 func initUserNameMap() error {
@@ -379,13 +388,14 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		session.Options = &sessions.Options{MaxAge: -1}
 		session.Save(r, w)
 
-		re.HTML(w, http.StatusOK, "index", struct {
+		templates.ExecuteTemplate(w, "index.tmpl", struct {
 			Name  string
 			Flush string
 		}{
 			name,
 			flush,
 		})
+
 		return
 	}
 
@@ -468,15 +478,16 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 
 	add := r.URL.Query().Get("append")
 	if add != "" {
-		re.HTML(w, http.StatusOK, "_tweets", struct {
+		templates.ExecuteTemplate(w, "_tweets.tmpl", struct {
 			Tweets []*Tweet
 		}{
 			tweets,
 		})
+
 		return
 	}
 
-	re.HTML(w, http.StatusOK, "index", struct {
+	templates.ExecuteTemplate(w, "index.tmpl", struct {
 		Name   string
 		Tweets []*Tweet
 	}{
@@ -676,15 +687,16 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 
 	add := r.URL.Query().Get("append")
 	if add != "" {
-		re.HTML(w, http.StatusOK, "_tweets", struct {
+		templates.ExecuteTemplate(w, "_tweets.tmpl", struct {
 			Tweets []*Tweet
 		}{
 			tweets,
 		})
+
 		return
 	}
 
-	re.HTML(w, http.StatusOK, "user", struct {
+	templates.ExecuteTemplate(w, "user.tmpl", struct {
 		Name     string
 		User     string
 		Tweets   []*Tweet
@@ -754,15 +766,16 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	add := r.URL.Query().Get("append")
 	if add != "" {
-		re.HTML(w, http.StatusOK, "_tweets", struct {
+		templates.ExecuteTemplate(w, "_tweets.tmpl", struct {
 			Tweets []*Tweet
 		}{
 			tweets,
 		})
+
 		return
 	}
 
-	re.HTML(w, http.StatusOK, "search", struct {
+	templates.ExecuteTemplate(w, "search.tmpl", struct {
 		Name   string
 		Tweets []*Tweet
 		Query  string
@@ -849,18 +862,6 @@ func main() {
 	}
 
 	store = sessions.NewFilesystemStore("", []byte(sessionSecret))
-
-	re = render.New(render.Options{
-		Directory: "views",
-		Funcs: []template.FuncMap{
-			{
-				"raw": func(text string) template.HTML {
-					return template.HTML(text)
-				},
-				"add": func(a, b int) int { return a + b },
-			},
-		},
-	})
 
 	r := mux.NewRouter()
 	r.HandleFunc("/initialize", initializeHandler).Methods("GET")
