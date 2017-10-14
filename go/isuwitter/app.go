@@ -58,6 +58,7 @@ var (
 	db             *sql.DB
 	errInvalidUser = errors.New("Invalid User")
 
+	dbTomo          *sql.DB
 	userNameMap     map[string]string
 	userNameMapLock sync.RWMutex
 	fCache          *cacheFriends
@@ -268,6 +269,23 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	fCache = NewCacheFriends()
+
+	rows, err := dbTomo.Query("SELECT `me`, `friends` FROM friends")
+	if err != nil && err != sql.ErrNoRows {
+		panic(err)
+	}
+
+	for rows.Next() {
+		var me string
+		var friends string
+		err := rows.Scan(&me, &friends)
+		if err != nil && err != sql.ErrNoRows {
+			badRequest(w)
+			return
+		}
+
+		fCache.Set(me, strings.Split(friends, ","))
+	}
 
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
@@ -762,10 +780,23 @@ func main() {
 		dbname = "isuwitter"
 	}
 
+	isutomoDBName := os.Getenv("ISUTOMO_DB_NAME")
+	if isutomoDBName == "" {
+		isutomoDBName = "isutomo"
+	}
+
 	var err error
 	db, err = sql.Open("mysql:trace", fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&loc=Local&parseTime=true",
 		user, password, host, port, dbname,
+	))
+	if err != nil {
+		log.Fatalf("Failed to connect to DB: %s.", err.Error())
+	}
+
+	dbTomo, err = sql.Open("mysql:trace", fmt.Sprintf(
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&loc=Local&parseTime=true",
+		user, password, host, port, isutomoDBName,
 	))
 	if err != nil {
 		log.Fatalf("Failed to connect to DB: %s.", err.Error())
