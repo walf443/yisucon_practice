@@ -284,12 +284,8 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userNameMapLock.Lock()
 	userNameMap = make(map[string]string, 0)
-	userNameMapLock.Unlock()
-	userIDMapLock.Lock()
 	userIDMap = make(map[string]int, 0)
-	userIDMapLock.Unlock()
 	err = initUserNameMap()
 	if err != nil {
 		badRequest(w)
