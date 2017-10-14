@@ -137,6 +137,12 @@ func fillUserNames(tweets []*Tweet) error {
 }
 
 func getUserName(id int) string {
+	userNameMapLock.RLock()
+	name, ok := userNameMap[strconv.Itoa(id)]
+	if ok {
+		return name
+	}
+	userNameMapLock.RUnlock()
 	row := db.QueryRow(`SELECT name FROM users WHERE id = ?`, id)
 	user := User{}
 	err := row.Scan(&user.Name)
