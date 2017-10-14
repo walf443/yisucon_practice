@@ -68,6 +68,34 @@ func getuserID(name string) int {
 	return user.ID
 }
 
+func fillUserNames(tweets []*Tweet) error {
+	userIds := make([]string, 0)
+	for _, tweet := range tweets {
+		userIds = append(userIds, strconv.Itoa(tweet.UserID))
+	}
+	placeholder := strings.Join(userIds, ",")
+	rows, err := db.Query(fmt.Sprintf(`SELECT id, name FROM users WHERE id IN (%s)`, placeholder))
+	if err != nil {
+		panic(err)
+		return err
+	}
+	userNameMap := make(map[int]string)
+	for rows.Next() {
+		var id int
+		var name string
+		err := rows.Scan(&id, &name)
+		if err != nil {
+			return err
+		}
+		userNameMap[id] = name
+	}
+	for _, tweet := range tweets {
+		tweet.UserName = userNameMap[tweet.UserID]
+	}
+
+	return nil
+}
+
 func getUserName(id int) string {
 	row := db.QueryRow(`SELECT name FROM users WHERE id = ?`, id)
 	user := User{}
@@ -217,22 +245,32 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		t.HTML = htmlify(t.Text)
 		t.Time = t.CreatedAt.Format("2006-01-02 15:04:05")
 
-		t.UserName = getUserName(t.UserID)
-		if t.UserName == "" {
-			badRequest(w)
-			return
-		}
-
-		for _, x := range result {
-			if x == t.UserName {
-				tweets = append(tweets, &t)
-				break
-			}
-		}
-		if len(tweets) == perPage {
+		tweets = append(tweets, &t)
+		if len(tweets) == perPage*10 {
 			break
 		}
 	}
+
+	err = fillUserNames(tweets)
+	if err != nil {
+		badRequest(w)
+		return
+	}
+
+	filteredTweets := make([]*Tweet, 0)
+	for _, tweet := range tweets {
+
+		for _, x := range result {
+			if x == tweet.UserName {
+				filteredTweets = append(filteredTweets, tweet)
+				break
+			}
+		}
+		if len(filteredTweets) == perPage {
+			break
+		}
+	}
+	tweets = filteredTweets
 
 	add := r.URL.Query().Get("append")
 	if add != "" {
@@ -505,9 +543,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 	if until == "" {
-		rows, err = db.Query(`SELECT tweets.*, users.name FROM tweets FORCE INDEX (PRIMARY) JOIN users ON (tweets.user_id = users.id ) WHERE text LIKE ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", perPage)
+		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", perPage)
 	} else {
-		rows, err = db.Query(`SELECT tweets.*, users.name FROM tweets FORCE INDEX (PRIMARY) JOIN users ON (tweets.user_id = users.id ) WHERE text LIKE ? AND created_at < ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", until, perPage)
+		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? AND created_at < ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", until, perPage)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -522,17 +560,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	tweets := make([]*Tweet, 0)
 	for rows.Next() {
 		t := Tweet{}
-		err := rows.Scan(&t.ID, &t.UserID, &t.Text, &t.CreatedAt, &t.UserName)
+		err := rows.Scan(&t.ID, &t.UserID, &t.Text, &t.CreatedAt)
 		if err != nil && err != sql.ErrNoRows {
 			badRequest(w)
 			return
 		}
 		t.HTML = htmlify(t.Text)
 		t.Time = t.CreatedAt.Format("2006-01-02 15:04:05")
-		if t.UserName == "" {
-			badRequest(w)
-			return
-		}
 		if strings.Index(t.HTML, query) != -1 {
 			tweets = append(tweets, &t)
 		}
@@ -540,6 +574,11 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		if len(tweets) == perPage {
 			break
 		}
+	}
+	err = fillUserNames(tweets)
+	if err != nil {
+		badRequest(w)
+		return
 	}
 
 	add := r.URL.Query().Get("append")
