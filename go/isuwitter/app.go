@@ -168,11 +168,7 @@ func getUserName(id int) string {
 }
 
 func htmlify(tweet string) string {
-	tweet = strings.Replace(tweet, "&", "&amp;", -1)
-	tweet = strings.Replace(tweet, "<", "&lt;", -1)
-	tweet = strings.Replace(tweet, ">", "&gt;", -1)
-	tweet = strings.Replace(tweet, "'", "&apos;", -1)
-	tweet = strings.Replace(tweet, "\"", "&quot;", -1)
+	tweet = html.EscapeString(tweet)
 	tweet = hashtagRegexp.ReplaceAllStringFunc(tweet, func(tag string) string {
 		return fmt.Sprintf("<a class=\"hashtag\" href=\"/hashtag/%s\">#%s</a>", tag[1:len(tag)], html.EscapeString(tag[1:len(tag)]))
 	})
