@@ -11,6 +11,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strconv"
 	//"net/url"
 	"os"
 	"regexp"
@@ -151,13 +152,48 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	until := r.URL.Query().Get("until")
+	result, err := loadFriends(name)
+	if err != nil {
+		panic(err)
+		badRequest(w)
+		return
+	}
+
+	names := strings.Join(result, `","`)
+
 	var rows *sql.Rows
-	var err error
+
+	rows, err = db.Query(fmt.Sprintf("SELECT `id` FROM users WHERE `name` IN (\"%s\") ORDER BY id ASC", names))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.NotFound(w, r)
+			return
+		}
+		badRequest(w)
+		return
+	}
+	defer rows.Close()
+
+	userIDs := make([]string, 0, len(names))
+
+	for rows.Next() {
+		var id int64
+		err := rows.Scan(&id)
+		if err != nil && err != sql.ErrNoRows {
+			badRequest(w)
+			return
+		}
+
+		userIDs = append(userIDs, strconv.FormatInt(id, 10))
+	}
+
+	sqlParts := strings.Join(userIDs, ",")
+
+	until := r.URL.Query().Get("until")
 	if until == "" {
-		rows, err = db.Query(`SELECT * FROM tweets ORDER BY created_at DESC`)
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets WHERE `user_id` IN (%s) ORDER BY created_at DESC", sqlParts))
 	} else {
-		rows, err = db.Query(`SELECT * FROM tweets WHERE created_at < ? ORDER BY created_at DESC`, until)
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets WHERE `user_id` IN (%s) AND created_at < ? ORDER BY created_at DESC", sqlParts), until)
 	}
 
 	if err != nil {
@@ -169,13 +205,6 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-
-	result, err := loadFriends(name)
-	if err != nil {
-		panic(err)
-		badRequest(w)
-		return
-	}
 
 	tweets := make([]*Tweet, 0)
 	for rows.Next() {
