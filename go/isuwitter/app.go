@@ -415,7 +415,7 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 	if until == "" {
 		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets FORCE INDEX (PRIMARY) WHERE `user_id` IN (%s) ORDER BY id DESC LIMIT ?", sqlParts), perPage)
 	} else {
-		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets FORCE INDEX (PRIMARY) WHERE `user_id` IN (%s) AND created_at < ? ORDER BY id DESC LIMIT ?", sqlParts), until, perPage)
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets FORCE INDEX (created_at) WHERE `user_id` IN (%s) AND created_at < ? ORDER BY created_at DESC LIMIT ?", sqlParts), until, perPage)
 	}
 
 	if err != nil {
@@ -701,7 +701,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	if until == "" {
 		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", perPage)
 	} else {
-		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? AND created_at < ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", until, perPage)
+		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (created_at) WHERE text LIKE ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`, "%"+query+"%", until, perPage)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
