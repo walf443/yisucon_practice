@@ -77,17 +77,19 @@ func getuserID(name string) int {
 
 func fillUserNames(tweets []*Tweet) error {
 	userIds := make([]string, 0)
+
+	userNameMapLock.RLock()
 	for _, tweet := range tweets {
 		id := strconv.Itoa(tweet.UserID)
-		userNameMapLock.RLock()
 		name, ok := userNameMap[id]
-		userNameMapLock.RUnlock()
 		if ok {
 			tweet.UserName = name
 		} else {
 			userIds = append(userIds, id)
 		}
 	}
+	userNameMapLock.RUnlock()
+
 	if len(userIds) > 0 {
 		placeholder := strings.Join(userIds, ",")
 		rows, err := db.Query(fmt.Sprintf(`SELECT id, name FROM users WHERE id IN (%s)`, placeholder))
@@ -95,6 +97,8 @@ func fillUserNames(tweets []*Tweet) error {
 			panic(err)
 			return err
 		}
+
+		userNameMapLock.Lock()
 		for rows.Next() {
 			var id string
 			var name string
@@ -102,16 +106,18 @@ func fillUserNames(tweets []*Tweet) error {
 			if err != nil {
 				return err
 			}
-			userNameMapLock.Lock()
 			userNameMap[id] = name
-			userNameMapLock.Unlock()
 		}
+		userNameMapLock.Unlock()
+
+		userNameMapLock.RLock()
 		for _, tweet := range tweets {
 			name, ok := userNameMap[strconv.Itoa(tweet.UserID)]
 			if ok {
 				tweet.UserName = name
 			}
 		}
+		userNameMapLock.RUnlock()
 	}
 
 	return nil
