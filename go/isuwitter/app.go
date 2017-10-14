@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha1"
 	"database/sql"
 	"encoding/json"
@@ -11,6 +10,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os/exec"
 	"strconv"
 	//"net/url"
 	"os"
@@ -266,12 +266,17 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := http.Get(fmt.Sprintf("%s/initialize", isutomoEndpoint))
+	path, err := exec.LookPath("mysql")
 	if err != nil {
-		badRequest(w)
+		panic(err)
 		return
 	}
-	defer resp.Body.Close()
+
+	exec.Command(path, "-u", "root", "-D", "isutomo", "<", "../../sql/seed_isutomo2.sql").Run()
+	if err != nil {
+		panic(err)
+		return
+	}
 
 	fCache = NewCacheFriends()
 
@@ -509,20 +514,6 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetUserName := r.FormValue("user")
-	jsonStr := `{"user":"` + targetUserName + `"}`
-	req, err := http.NewRequest(http.MethodPost, pathURIEscape(isutomoEndpoint+"/"+userName), bytes.NewBuffer([]byte(jsonStr)))
-
-	if err != nil {
-		badRequest(w)
-		return
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil || resp.StatusCode != 200 {
-		badRequest(w)
-		return
-	}
 
 	fCache.Add(userName, targetUserName)
 
@@ -546,21 +537,6 @@ func unfollowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetUserName := r.FormValue("user")
-	jsonStr := `{"user":"` + targetUserName + `"}`
-	req, err := http.NewRequest(http.MethodDelete, pathURIEscape(isutomoEndpoint+"/"+userName), bytes.NewBuffer([]byte(jsonStr)))
-
-	if err != nil {
-		badRequest(w)
-		return
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-
-	if err != nil || resp.StatusCode != 200 {
-		badRequest(w)
-		return
-	}
-
 	fCache.Del(userName, targetUserName)
 
 	http.Redirect(w, r, "/", http.StatusFound)
