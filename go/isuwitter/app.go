@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os/exec"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"syscall"
 	//"net/url"
@@ -69,7 +68,6 @@ var (
 	userIDMapLock   sync.RWMutex
 	fCache          *cacheFriends
 	hport           int
-	hashtagRegexp   *regexp.Regexp
 )
 
 func init() {
@@ -80,7 +78,6 @@ func init() {
 	userIDMap = make(map[string]int, 0)
 
 	fCache = NewCacheFriends()
-	hashtagRegexp = regexp.MustCompile("#(\\S+)(\\s|$)")
 }
 
 func getuserID(name string) int {
