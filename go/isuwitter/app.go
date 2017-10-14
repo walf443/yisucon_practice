@@ -219,9 +219,9 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 
 	until := r.URL.Query().Get("until")
 	if until == "" {
-		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets WHERE `user_id` IN (%s) ORDER BY created_at DESC", sqlParts))
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets FORCE INDEX (PRIMARY) WHERE `user_id` IN (%s) ORDER BY id DESC LIMIT ?", sqlParts), perPage)
 	} else {
-		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets WHERE `user_id` IN (%s) AND created_at < ? ORDER BY created_at DESC", sqlParts), until)
+		rows, err = db.Query(fmt.Sprintf("SELECT * FROM tweets FORCE INDEX (PRIMARY) WHERE `user_id` IN (%s) AND created_at < ? ORDER BY id DESC LIMIT ?", sqlParts), until, perPage)
 	}
 
 	if err != nil {
@@ -246,7 +246,7 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		t.Time = t.CreatedAt.Format("2006-01-02 15:04:05")
 
 		tweets = append(tweets, &t)
-		if len(tweets) == perPage*10 {
+		if len(tweets) == perPage {
 			break
 		}
 	}
@@ -256,21 +256,6 @@ func topHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w)
 		return
 	}
-
-	filteredTweets := make([]*Tweet, 0)
-	for _, tweet := range tweets {
-
-		for _, x := range result {
-			if x == tweet.UserName {
-				filteredTweets = append(filteredTweets, tweet)
-				break
-			}
-		}
-		if len(filteredTweets) == perPage {
-			break
-		}
-	}
-	tweets = filteredTweets
 
 	add := r.URL.Query().Get("append")
 	if add != "" {
