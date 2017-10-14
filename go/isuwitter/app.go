@@ -476,9 +476,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 	if until == "" {
-		rows, err = db.Query(`SELECT * FROM tweets ORDER BY created_at DESC`)
+		rows, err = db.Query(`SELECT tweets.*, users.name FROM tweets FORCE INDEX (PRIMARY) JOIN users ON (tweets.user_id = users.id ) WHERE text LIKE ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", perPage)
 	} else {
-		rows, err = db.Query(`SELECT * FROM tweets WHERE created_at < ? ORDER BY created_at DESC`, until)
+		rows, err = db.Query(`SELECT tweets.*, users.name FROM tweets FORCE INDEX (PRIMARY) JOIN users ON (tweets.user_id = users.id ) WHERE text LIKE ? AND created_at < ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", until, perPage)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -493,14 +493,13 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	tweets := make([]*Tweet, 0)
 	for rows.Next() {
 		t := Tweet{}
-		err := rows.Scan(&t.ID, &t.UserID, &t.Text, &t.CreatedAt)
+		err := rows.Scan(&t.ID, &t.UserID, &t.Text, &t.CreatedAt, &t.UserName)
 		if err != nil && err != sql.ErrNoRows {
 			badRequest(w)
 			return
 		}
 		t.HTML = htmlify(t.Text)
 		t.Time = t.CreatedAt.Format("2006-01-02 15:04:05")
-		t.UserName = getUserName(t.UserID)
 		if t.UserName == "" {
 			badRequest(w)
 			return
