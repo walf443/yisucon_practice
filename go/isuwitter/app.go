@@ -170,10 +170,31 @@ func getUserName(id int) string {
 
 func htmlify(tweet string) string {
 	tweet = html.EscapeString(tweet)
-	tweet = hashtagRegexp.ReplaceAllStringFunc(tweet, func(tag string) string {
-		return fmt.Sprintf("<a class=\"hashtag\" href=\"/hashtag/%s\">#%s</a>", tag[1:len(tag)], html.EscapeString(tag[1:len(tag)]))
-	})
-	return tweet
+
+	replacer := make([]string, 0)
+
+	pos := len(tweet)
+
+	for {
+		pos = strings.LastIndex(tweet[:pos-1], "#")
+		if pos == -1 {
+			break
+		}
+
+		partial := tweet[pos+1:]
+		cutPos := strings.Index(partial, " ")
+		var tag string
+		if cutPos > -1 {
+			tag = partial[:cutPos]
+		} else {
+			tag = partial
+		}
+		replacer = append(replacer, "#"+tag)
+		replacer = append(replacer, fmt.Sprintf("<a class=\"hashtag\" href=\"/hashtag/%s\">#%s</a>", tag, html.EscapeString(tag)))
+	}
+
+	r := strings.NewReplacer(replacer...)
+	return r.Replace(tweet)
 }
 
 type cacheFriends struct {
