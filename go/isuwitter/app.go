@@ -53,16 +53,20 @@ const (
 )
 
 var (
-	re              *render.Render
-	store           *sessions.FilesystemStore
-	db              *sql.DB
-	errInvalidUser  = errors.New("Invalid User")
+	re             *render.Render
+	store          *sessions.FilesystemStore
+	db             *sql.DB
+	errInvalidUser = errors.New("Invalid User")
+
 	userNameMap     map[string]string
 	userNameMapLock sync.RWMutex
+	fCache          *cacheFriends
 )
 
 func init() {
 	userNameMap = make(map[string]string, 0)
+
+	fCache = NewCacheFriends()
 }
 
 func getuserID(name string) int {
@@ -146,7 +150,86 @@ func htmlify(tweet string) string {
 	return tweet
 }
 
+type cacheFriends struct {
+	// Setが多いならsync.Mutex
+	sync.RWMutex
+	items map[string][]string
+}
+
+func NewCacheFriends() *cacheFriends {
+	m := make(map[string][]string)
+	c := &cacheFriends{
+		items: m,
+	}
+	return c
+}
+
+func (c *cacheFriends) Set(name string, value []string) {
+	c.Lock()
+	c.items[name] = value
+	c.Unlock()
+}
+
+func (c *cacheFriends) Del(name string, value string) {
+	c.Lock()
+	defer c.Unlock()
+	v, found := c.items[name]
+	if !found {
+		return
+	}
+
+	target := -1
+	for i, id := range v {
+		if id == value {
+			target = i
+			break
+		}
+	}
+
+	if target == -1 {
+		return
+	}
+
+	v[target] = v[len(v)-1]
+	c.items[name] = v[:len(v)-1]
+}
+
+func (c *cacheFriends) Add(name string, value string) {
+	c.Lock()
+	defer c.Unlock()
+	v, found := c.items[name]
+	if !found {
+		return
+	}
+
+	c.items[name] = append(v, value)
+}
+
+func (c *cacheFriends) Get(name string) ([]string, bool) {
+	c.RLock()
+	v, found := c.items[name]
+	c.RUnlock()
+
+	return v, found
+}
+
 func loadFriends(name string) ([]string, error) {
+	v, found := fCache.Get(name)
+	if found {
+		return v, nil
+	}
+
+	result, err := _loadFriends(name)
+	if err != nil {
+		return result, err
+	}
+
+	fCache.Set(name, result)
+
+	return result, err
+}
+
+func _loadFriends(name string) ([]string, error) {
 	resp, err := http.DefaultClient.Get(pathURIEscape(fmt.Sprintf("%s/%s", isutomoEndpoint, name)))
 	if err != nil {
 		return nil, err
@@ -183,6 +266,8 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
+
+	fCache = NewCacheFriends()
 
 	re.JSON(w, http.StatusOK, map[string]string{"result": "ok"})
 }
@@ -380,7 +465,8 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonStr := `{"user":"` + r.FormValue("user") + `"}`
+	targetUserName := r.FormValue("user")
+	jsonStr := `{"user":"` + targetUserName + `"}`
 	req, err := http.NewRequest(http.MethodPost, pathURIEscape(isutomoEndpoint+"/"+userName), bytes.NewBuffer([]byte(jsonStr)))
 
 	if err != nil {
@@ -394,6 +480,8 @@ func followHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w)
 		return
 	}
+
+	fCache.Add(userName, targetUserName)
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
@@ -414,7 +502,8 @@ func unfollowHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonStr := `{"user":"` + r.FormValue("user") + `"}`
+	targetUserName := r.FormValue("user")
+	jsonStr := `{"user":"` + targetUserName + `"}`
 	req, err := http.NewRequest(http.MethodDelete, pathURIEscape(isutomoEndpoint+"/"+userName), bytes.NewBuffer([]byte(jsonStr)))
 
 	if err != nil {
@@ -428,6 +517,8 @@ func unfollowHandler(w http.ResponseWriter, r *http.Request) {
 		badRequest(w)
 		return
 	}
+
+	fCache.Del(userName, targetUserName)
 
 	http.Redirect(w, r, "/", http.StatusFound)
 }
