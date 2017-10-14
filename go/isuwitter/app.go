@@ -5,13 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"html"
 	"html/template"
 	"log"
+	"net"
 	"net/http"
 	"os/exec"
+	"os/signal"
 	"strconv"
+	"syscall"
 	//"net/url"
 	"os"
 	"regexp"
@@ -62,9 +66,13 @@ var (
 	userNameMap     map[string]string
 	userNameMapLock sync.RWMutex
 	fCache          *cacheFriends
+	hport           int
 )
 
 func init() {
+	flag.IntVar(&hport, "port", 0, "port to listen")
+	flag.Parse()
+
 	userNameMap = make(map[string]string, 0)
 
 	fCache = NewCacheFriends()
@@ -844,5 +852,35 @@ func main() {
 	i.Methods("GET").HandlerFunc(topHandler)
 	i.Methods("POST").HandlerFunc(tweetPostHandler)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	sigchan := make(chan os.Signal)
+	signal.Notify(sigchan, syscall.SIGTERM)
+	signal.Notify(sigchan, syscall.SIGINT)
+
+	var li net.Listener
+	var herr error
+	hsock := "/dev/shm/server.sock"
+	if hport == 0 {
+		ferr := os.Remove(hsock)
+		if ferr != nil {
+			if !os.IsNotExist(ferr) {
+				panic(ferr)
+			}
+		}
+		li, herr = net.Listen("unix", hsock)
+		cerr := os.Chmod(hsock, 0666)
+		if cerr != nil {
+			panic(cerr)
+		}
+	} else {
+		li, herr = net.ListenTCP("tcp", &net.TCPAddr{Port: hport})
+	}
+	if herr != nil {
+		panic(herr)
+	}
+	go func() {
+		// func Serve(l net.Listener, handler Handler) error
+		log.Println(http.Serve(li, r))
+	}()
+
+	<-sigchan
 }
