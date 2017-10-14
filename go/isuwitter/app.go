@@ -603,9 +603,9 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 	if until == "" {
-		rows, err = db.Query(`SELECT * FROM tweets WHERE user_id = ? ORDER BY created_at DESC LIMIT ?`, userID, perPage)
+		rows, err = db.Query(`SELECT * FROM tweets WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, perPage)
 	} else {
-		rows, err = db.Query(`SELECT * FROM tweets WHERE user_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT ?`, userID, until, perPage)
+		rows, err = db.Query(`SELECT * FROM tweets WHERE user_id = ? AND created_at < ? ORDER BY id DESC LIMIT ?`, userID, until, perPage)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
