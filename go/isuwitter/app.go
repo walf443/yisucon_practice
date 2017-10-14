@@ -569,12 +569,7 @@ func userHandler(w http.ResponseWriter, r *http.Request) {
 	session := getSession(w, r)
 	sessionUID, ok := session.Values["user_id"]
 	if ok {
-		userNameMapLock.RLock()
-		name, ok = userNameMap[strconv.Itoa(sessionUID.(int))]
-		userNameMapLock.RUnlock()
-		if !ok {
-			name = getUserName(sessionUID.(int))
-		}
+		name = getUserName(sessionUID.(int))
 	} else {
 		name = ""
 	}
