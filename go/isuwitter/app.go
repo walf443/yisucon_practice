@@ -821,7 +821,7 @@ func main() {
 	}
 
 	var err error
-	db, err = sql.Open("mysql:trace", fmt.Sprintf(
+	db, err = sql.Open("mysql", fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&loc=Local&parseTime=true",
 		user, password, host, port, dbname,
 	))
@@ -829,7 +829,7 @@ func main() {
 		log.Fatalf("Failed to connect to DB: %s.", err.Error())
 	}
 
-	dbTomo, err = sql.Open("mysql:trace", fmt.Sprintf(
+	dbTomo, err = sql.Open("mysql", fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&loc=Local&parseTime=true",
 		user, password, host, port, isutomoDBName,
 	))
