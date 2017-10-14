@@ -65,6 +65,8 @@ var (
 	dbTomo          *sql.DB
 	userNameMap     map[string]string
 	userNameMapLock sync.RWMutex
+	userIDMap       map[string]int
+	userIDMapLock   sync.RWMutex
 	fCache          *cacheFriends
 	hport           int
 )
@@ -74,11 +76,19 @@ func init() {
 	flag.Parse()
 
 	userNameMap = make(map[string]string, 0)
+	userIDMap = make(map[string]int, 0)
 
 	fCache = NewCacheFriends()
 }
 
 func getuserID(name string) int {
+	userIDMapLock.RLock()
+	id, ok := userIDMap[name]
+	userIDMapLock.RUnlock()
+	if ok {
+		return id
+	}
+
 	row := db.QueryRow(`SELECT id FROM users WHERE name = ?`, name)
 	user := User{}
 	err := row.Scan(&user.ID)
@@ -112,16 +122,19 @@ func fillUserNames(tweets []*Tweet) error {
 		}
 
 		userNameMapLock.Lock()
+		userIDMapLock.Lock()
 		for rows.Next() {
-			var id string
+			var id int
 			var name string
 			err := rows.Scan(&id, &name)
 			if err != nil {
 				return err
 			}
-			userNameMap[id] = name
+			userNameMap[strconv.Itoa(id)] = name
+			userIDMap[name] = id
 		}
 		userNameMapLock.Unlock()
+		userIDMapLock.Unlock()
 
 		userNameMapLock.RLock()
 		for _, tweet := range tweets {
@@ -137,6 +150,12 @@ func fillUserNames(tweets []*Tweet) error {
 }
 
 func getUserName(id int) string {
+	userNameMapLock.RLock()
+	name, ok := userNameMap[strconv.Itoa(id)]
+	if ok {
+		return name
+	}
+	userNameMapLock.RUnlock()
 	row := db.QueryRow(`SELECT name FROM users WHERE id = ?`, id)
 	user := User{}
 	err := row.Scan(&user.Name)
@@ -267,6 +286,7 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 
 	userNameMapLock.Lock()
 	userNameMap = make(map[string]string, 0)
+	userIDMap = make(map[string]int, 0)
 	userNameMapLock.Unlock()
 	err = initUserNameMap()
 	if err != nil {
@@ -315,15 +335,19 @@ func initUserNameMap() error {
 	}
 
 	userNameMapLock.Lock()
+	userIDMapLock.Lock()
 	for rows.Next() {
-		var id, name string
+		var id int
+		var name string
 		err := rows.Scan(&id, &name)
 		if err != nil {
 			return err
 		}
-		userNameMap[id] = name
+		userNameMap[strconv.Itoa(id)] = name
+		userIDMap[name] = id
 	}
 	userNameMapLock.Unlock()
+	userIDMapLock.Unlock()
 
 	return nil
 }
