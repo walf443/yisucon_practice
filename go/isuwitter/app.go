@@ -286,8 +286,10 @@ func initializeHandler(w http.ResponseWriter, r *http.Request) {
 
 	userNameMapLock.Lock()
 	userNameMap = make(map[string]string, 0)
-	userIDMap = make(map[string]int, 0)
 	userNameMapLock.Unlock()
+	userIDMapLock.Lock()
+	userIDMap = make(map[string]int, 0)
+	userIDMapLock.Unlock()
 	err = initUserNameMap()
 	if err != nil {
 		badRequest(w)
@@ -346,8 +348,8 @@ func initUserNameMap() error {
 		userNameMap[strconv.Itoa(id)] = name
 		userIDMap[name] = id
 	}
-	userNameMapLock.Unlock()
 	userIDMapLock.Unlock()
+	userNameMapLock.Unlock()
 
 	return nil
 }
