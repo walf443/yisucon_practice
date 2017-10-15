@@ -1,9 +1,9 @@
-{{ template "base_top" .}}
+{{ template "base_top.tmpl" .}}
 
 <h3>{{ .Query }} に関するツイート</h3>
    <div class="timeline">
-{{ template "_tweets" .}}
+{{ template "_tweets.tmpl" .}}
    </div>
    <button class="readmore">さらに読み込む</button>
 
-{{ template "base_bottom" .}}
+{{ template "base_bottom.tmpl" .}}
