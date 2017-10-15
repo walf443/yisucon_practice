@@ -714,9 +714,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	var rows *sql.Rows
 	var err error
 	if until == "" {
-		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", perPage)
+		rows, err = db.Query(`SELECT tweets.* FROM tweets WHERE MATCH(text) AGAINST(? IN BOOLEAN MODE) ORDER BY id DESC LIMIT ?`, query, perPage)
 	} else {
-		rows, err = db.Query(`SELECT tweets.* FROM tweets FORCE INDEX (PRIMARY) WHERE text LIKE ? AND created_at < ? ORDER BY id DESC LIMIT ?`, "%"+query+"%", until, perPage)
+		rows, err = db.Query(`SELECT tweets.* FROM tweets WHERE MATCH(text) AGAINST(? IN BOOLEAN MODE) AND created_at < ? ORDER BY id DESC LIMIT ?`, query, until, perPage)
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
